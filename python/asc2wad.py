@@ -1,5 +1,6 @@
 # asc2wad.py - convert a maze from ASCII to WAD
 # Ruud Helderman, January 2026 - MIT License
+
 import argparse
 import re
 import struct
@@ -10,10 +11,9 @@ import matplotlib.pyplot as plt
 
 width_pass = 128
 width_pole = 32
-height_ceiling = 144
 
-xpos = [0]
-ypos = [0]
+xpos = []
+ypos = []
 vertex_hash = {}
 vertex_list = []
 linedef_list = []
@@ -55,7 +55,7 @@ def faces(lines, re_faces):
     ts = transpose_lines([re.sub(re_faces, '\t', line) for line in lines])
     return [(i, m) for i, t in enumerate(ts, start=1) for m in re.finditer(r'\t+', t)]
 
-def drawMatplot():
+def draw_matplot():
     for x, y, t in thing_list:
         plt.plot(x, y, 'bo')
     for linedef in linedef_list:
@@ -64,7 +64,7 @@ def drawMatplot():
         plt.plot([x1, x2], [y1, y2], marker='.', ms=2, mec='k', lw=1, color='silver')
     plt.show()
 
-def writeUmdf(filename):
+def write_umdf(filename, args):
     with open(filename, 'wb') as f:
         # PWAD header, 12 bytes: signature, number of lumps, offset of directory
         f.write(struct.pack('<4s2i', b'PWAD', 3, 12))
@@ -90,8 +90,8 @@ def writeUmdf(filename):
             f.write(f'linedef {{ v1 = {linedef.start}; v2 = {linedef.end}; sidefront = 0; blocking = true; }}\n'.encode('ascii'))
 
         # Sidedef, sector
-        f.write(b'sidedef { sector = 0; texturemiddle = "STARTAN1"; }\n')
-        f.write(b'sector { heightfloor = 0; heightceiling = 144; texturefloor = "FLOOR0_1"; textureceiling = "F_SKY1"; lightlevel = 192; }\n')
+        f.write(f'sidedef {{ sector = 0; texturemiddle = "{args.texture_walls}"; }}\n'.encode('ascii'))
+        f.write(f'sector {{ heightfloor = {args.height_floor}; heightceiling = {args.height_ceiling}; texturefloor = "{args.texture_floor}"; textureceiling = "{args.texture_ceiling}"; lightlevel = 192; }}\n'.encode('ascii'))
 
         # Fill in the blanks in the directory
         filesize = f.tell()
@@ -161,7 +161,22 @@ if __name__ == '__main__':
     parser.add_argument('input', nargs='?', default='-', help='ASCII maze file.')
     parser.add_argument('-o', '--output', nargs='?', help='WAD file.')
     parser.add_argument('-p', '--plot', action='store_true', help='Plot map.')
+    parser.add_argument('--offset-x', nargs='?', default=0, type=int, help='Offset X coordinate.')
+    parser.add_argument('--offset-y', nargs='?', default=0, type=int, help='Offset Y coordinate.')
+    parser.add_argument('--width-pass', nargs='?', default=128, type=int, help='Width of passages.')
+    parser.add_argument('--width-pole', nargs='?', default=32, type=int, help='Width of poles.')
+    parser.add_argument('--height-floor', nargs='?', default=0, type=int, help='Height of floor.')
+    parser.add_argument('--height-ceiling', nargs='?', default=144, type=int, help='Height of ceiling.')
+    parser.add_argument('--texture-floor', nargs='?', default='FLOOR0_1', help='Texture name for floor.')
+    parser.add_argument('--texture-ceiling', nargs='?', default='F_SKY1', help='Texture name for ceiling.')
+    parser.add_argument('--texture-walls', nargs='?', default='STARTAN1', help='Texture name for walls.')
     args = parser.parse_args()
+
+    xpos.append(args.offset_x)
+    ypos.append(args.offset_y)
+
+    width_pass = args.width_pass
+    width_pole = args.width_pole
 
     if args.input == '-':
         process_input(sys.stdin)
@@ -171,11 +186,8 @@ if __name__ == '__main__':
 
     print(len(vertex_list), 'vertices,', len(linedef_list), 'linedefs.', file=sys.stderr)
 
-    #print(vertex_list)
-    #print(linedef_list)
-
     if args.plot:
-        drawMatplot()
+        draw_matplot()
 
     if args.output is not None:
-        print('Written', writeUmdf(args.output), 'bytes to WAD file.', file=sys.stderr)
+        print('Written', write_umdf(args.output, args), 'bytes to WAD file.', file=sys.stderr)
