@@ -185,9 +185,13 @@ if __name__ == '__main__':
 
                 # Things
                 for x, y, t in m.thing_list:
-                    f.write(
-                        f'thing {{ x = {x}; y = {y}; angle = 90; type = {t}; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; skill6 = true; skill7 = true; skill8 = true; single = true; coop = true; dm = true; class1 = true; class2 = true; class3 = true; class4 = true; class5 = true; }}\n'.encode(
-                            'ascii'))
+                    f.write(f'thing {{ x = {x}; y = {y}; angle = 90; type = {t}; '
+                            .encode('ascii'))
+                    if t == 17:                                        # picking up cell charge pack
+                        f.write(f'special = 243; '.encode('ascii'))    # will end the level
+
+                    f.write(f'skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; skill6 = true; skill7 = true; skill8 = true; single = true; coop = true; dm = true; class1 = true; class2 = true; class3 = true; class4 = true; class5 = true; }}\n'
+                            .encode('ascii'))
 
                 # Vertices
                 for x, y in m.vertex_list:
