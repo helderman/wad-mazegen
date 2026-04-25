@@ -13,3 +13,6 @@ clean:
 
 help:
 	python3 asc2wad.py --help
+
+plot:
+	python3 asc2wad.py --plot `ls -t MAP??.txt | head -1`
