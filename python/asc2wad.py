@@ -8,6 +8,7 @@ import sys
 from itertools import zip_longest
 from typing import NamedTuple
 import matplotlib.pyplot as plt
+import json
 
 width_pass = 128
 width_pole = 32
@@ -128,8 +129,9 @@ class Map:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert ASCII maze to WAD file.')
     parser.add_argument('input', nargs='*', help='ASCII maze files')
-    parser.add_argument('-o', '--output', nargs='?', help='WAD file')
-    parser.add_argument('-p', '--plot', action='store_true', help='plot map')
+    parser.add_argument('--udmf', nargs=1, help='Create WAD file (UDMF)')
+    parser.add_argument('--babylon', nargs=1, help='Create HTML5 file (Babylon JS)')
+    parser.add_argument('--matplot', action='store_true', help='Show drawing of first map (matplot)')
     parser.add_argument('--offset-x', nargs='?', default=0, type=int, help='offset X coordinate')
     parser.add_argument('--offset-y', nargs='?', default=0, type=int, help='offset Y coordinate')
     parser.add_argument('--width-pass', nargs='?', default=128, type=int, help='width of passages')
@@ -155,18 +157,18 @@ if __name__ == '__main__':
                     m.process_input(f, args)
             maps.append(m)
             print(m.mapname, ':', len(m.vertex_list), 'vertices,', len(m.linedef_list), 'linedefs.', file=sys.stderr)
-            if args.plot:
+            if args.matplot:
                 m.draw_matplot()
     else:
         m = Map("MAP01")
         m.process_input(sys.stdin, args)
         maps.append(m)
         print(m.mapname, ':', len(m.vertex_list), 'vertices,', len(m.linedef_list), 'linedefs.', file=sys.stderr)
-        if args.plot:
+        if args.matplot:
             m.draw_matplot()
 
-    if args.output is not None:
-        with open(args.output, 'wb') as f:
+    if args.udmf is not None:
+        with open(args.udmf[0], 'wb') as f:
             # PWAD header, 12 bytes: signature, number of lumps, offset of directory
             f.write(struct.pack('<4s2i', b'PWAD', 3 * len(maps), 12))
 
@@ -224,3 +226,80 @@ if __name__ == '__main__':
                 f.seek(lump_offset)
 
             print('Written', f.tell(), 'bytes to WAD file.', file=sys.stderr)
+
+    if args.babylon is not None:
+        with open(args.babylon[0], 'wt') as f:
+            f.write('''<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Maze preview</title>
+<style>
+html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
+#maze { width: 100%; height: 100%; touch-action: none; }
+#mapselect { position: absolute; left: 0.5em; top: 0.5em; z-index: 1; }
+</style>
+<canvas id="maze"></canvas>
+<select id="mapselect"></select>
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script>
+const canvas = document.getElementById('maze');
+const mapselect = document.getElementById('mapselect');
+const engine = new BABYLON.Engine(canvas, true, {preserveDrawingBuffer: true, stencil: true});
+function createScene(things, vertices, linedefs) {
+    const scene = new BABYLON.Scene(engine);
+    scene.gravity = new BABYLON.Vector3(0, -1, 0);
+    scene.collisionsEnabled = true;
+    const camera = new BABYLON.UniversalCamera('cam', new BABYLON.Vector3(0, 5, -10)); // TODO
+    camera.cameraDirection = new BABYLON.Vector3(0, 0, 0.5);
+    camera.attachControl(canvas, false);
+    camera.ellipsoid = new BABYLON.Vector3(3, 2, 3);
+    camera.applyGravity = true;
+    camera.checkCollisions = true;
+    new BABYLON.HemisphericLight('light1', BABYLON.Vector3.Up()).diffuse = new BABYLON.Color3(0.4, 0.6, 0.8);
+    const vposVertexShader = 'precision highp float;attribute vec3 position;uniform mat4 worldViewProjection;varying vec3 vPos;void main(){gl_Position=worldViewProjection*vec4(vPos=position,1);}';
+    const woodFragmentShader = 'precision highp float;varying vec3 vPos;void main(){float x=vPos.x+vPos.z,d=1.-.05*sin(x*.15+fract(x*.2));gl_FragColor=vec4(vec3(.6,.44,.2)*d*(1.+.05*fract(vPos.y*.05+sin(x*.2+d)*20.)),1);}';
+    const carpetFragmentShader = 'precision highp float;varying vec3 vPos;void main(){gl_FragColor=vec4(.4,step(1.,dot(fract(vPos.xz+sin(vPos.zx)),vec2(1)))*.2,.2,1);}';
+    const wood = new BABYLON.ShaderMaterial('wood', scene, {vertexSource: vposVertexShader, fragmentSource: woodFragmentShader}, {});
+    const ground = BABYLON.MeshBuilder.CreateGround("ground1", { width: 999, height: 999 });
+    ground.checkCollisions = true;
+    ground.material = new BABYLON.ShaderMaterial('carpet', scene, {vertexSource: vposVertexShader, fragmentSource: carpetFragmentShader}, {});
+    for (const thing of things) {
+        const x = thing[0]/8;
+        const y = thing[1]/8;
+        switch (thing[2]) {
+            case 1:   // start position of player (= camera)
+                camera.position = new BABYLON.Vector3(x, 4, y);
+                break;
+            default:  // objects
+                BABYLON.MeshBuilder.CreateSphere('sphere1', {diameter: 2}).position = new BABYLON.Vector3(x, 1, y);
+        }
+    }
+    for (const linedef of linedefs) {
+        const start = vertices[linedef[0]];
+        const end   = vertices[linedef[1]];
+        const x1 = start[0]/8, x2 = end[0]/8;
+        const y1 = start[1]/8, y2 = end[1]/8;
+        const plane = BABYLON.MeshBuilder.CreatePlane('plane', {width: Math.abs(x1-x2+y1-y2), height: 10, sourcePlane: BABYLON.Plane.FromPoints(new BABYLON.Vector3(x1, 0, y1), new BABYLON.Vector3(x2, 0, y2), new BABYLON.Vector3(x2, -1, y2))});
+        plane.position = new BABYLON.Vector3((x1+x2)/2, 5, (y1+y2)/2);
+        plane.checkCollisions = true;
+        plane.material = wood;
+    }
+    return scene;
+}
+function addOption(name) {
+    const opt = document.createElement("option");
+    opt.innerText = opt.value = name;
+    mapselect.appendChild(opt);
+}
+const scenes = {};
+'''
+            );
+            for m in maps:
+                f.write(f'addOption("{m.mapname}");\n');
+                f.write(f'scenes["{m.mapname}"] = createScene({json.dumps(m.thing_list)}, {json.dumps(m.vertex_list)}, {json.dumps(m.linedef_list)});\n');
+            f.write('''
+engine.runRenderLoop(function() { scenes[mapselect.value].render(); });
+window.addEventListener('resize', function() { engine.resize(); });
+</script>
+'''
+            );
+            print('Written', f.tell(), 'bytes to HTML file.', file=sys.stderr)
