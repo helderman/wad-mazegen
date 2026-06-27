@@ -22,6 +22,7 @@ jobs:
         uses: actions/setup-python@v6.3.0
         with:
           python-version: '3.13'
+          pip-install: python/requirements.txt
 
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Checkout main branch
