@@ -18,6 +18,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Setup Python
+        uses: actions/setup-python@v6.3.0
+        with:
+          python-version: '3.13'
+          # Used to specify the packages to install with pip after setting up Python. Can be a requirements file or package names.
+          pip-install: python/requirements.txt
+
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Checkout main branch
         uses: actions/checkout@v4
