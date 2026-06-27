@@ -27,9 +27,10 @@ jobs:
 
       - name: Collect artifact files
         run: |
-              mkdir -p _site
-              cp -p python/test.{html,wad} _site/
-              echo -e '## Maze demo\n[Click here](test.html)' > _site/index.md
+              ls -l
+              mkdir -p ../_site
+              cp -p test.{html,wad} ../_site/
+              echo -e '## Maze demo\n[Click here](test.html)' > ../_site/index.md
 
       - name: Upload to GitHub Pages
         uses: actions/upload-pages-artifact@v5.0.0
