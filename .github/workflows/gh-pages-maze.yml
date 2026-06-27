@@ -18,15 +18,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v6.3.0
         with:
           python-version: '3.13'
           pip-install: -r python/requirements.txt
-
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - name: Checkout main branch
-        uses: actions/checkout@v4
 
       - name: Build test.html and test.wad
         run: make
