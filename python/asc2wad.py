@@ -235,10 +235,15 @@ if __name__ == '__main__':
 <style>
 html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
 #maze { width: 100%; height: 100%; touch-action: none; }
-#mapselect { position: absolute; left: 0.5em; top: 0.5em; z-index: 1; }
+.hud { position: absolute; left: 0.5em; top: 0.5em; padding: 0.5em; text-align: center; background: #fff8; z-index: 1; }
 </style>
 <canvas id="maze"></canvas>
-<select id="mapselect"></select>
+<div class="hud">
+<div>Download as:</div>
+<div><a href="test.wad">WAD</a></div>
+<div>Select map:</div>
+<div><select id="mapselect"></select></div>
+</div>
 <script src="https://cdn.babylonjs.com/babylon.js"></script>
 <script>
 const canvas = document.getElementById('maze');
@@ -247,6 +252,8 @@ const engine = new BABYLON.Engine(canvas, true, {preserveDrawingBuffer: true, st
 function createScene(things, vertices, linedefs) {
     const scene = new BABYLON.Scene(engine);
     scene.gravity = new BABYLON.Vector3(0, -1, 0);
+    scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.98);
+    scene.ambientColor = BABYLON.Color3.White();
     scene.collisionsEnabled = true;
     const camera = new BABYLON.UniversalCamera('cam', new BABYLON.Vector3(0, 5, -10)); // TODO
     camera.cameraDirection = new BABYLON.Vector3(0, 0, 0.5);
@@ -257,11 +264,26 @@ function createScene(things, vertices, linedefs) {
     new BABYLON.HemisphericLight('light1', BABYLON.Vector3.Up()).diffuse = new BABYLON.Color3(0.4, 0.6, 0.8);
     const vposVertexShader = 'precision highp float;attribute vec3 position;uniform mat4 worldViewProjection;varying vec3 vPos;void main(){gl_Position=worldViewProjection*vec4(vPos=position,1);}';
     const woodFragmentShader = 'precision highp float;varying vec3 vPos;void main(){float x=vPos.x+vPos.z,d=1.-.05*sin(x*.15+fract(x*.2));gl_FragColor=vec4(vec3(.6,.44,.2)*d*(1.+.05*fract(vPos.y*.05+sin(x*.2+d)*20.)),1);}';
-    const carpetFragmentShader = 'precision highp float;varying vec3 vPos;void main(){gl_FragColor=vec4(.4,step(1.,dot(fract(vPos.xz+sin(vPos.zx)),vec2(1)))*.2,.2,1);}';
+    const carpetFragmentShader = 'precision highp float;varying vec3 vPos;void main(){gl_FragColor=vec4(.4,.4,step(1.,dot(fract(vPos.xz+sin(vPos.zx)),vec2(1)))*.2,1);}';
     const wood = new BABYLON.ShaderMaterial('wood', scene, {vertexSource: vposVertexShader, fragmentSource: woodFragmentShader}, {});
     const ground = BABYLON.MeshBuilder.CreateGround("ground1", { width: 999, height: 999 });
     ground.checkCollisions = true;
     ground.material = new BABYLON.ShaderMaterial('carpet', scene, {vertexSource: vposVertexShader, fragmentSource: carpetFragmentShader}, {});
+
+    //const hellFragmentShader = 'precision highp float;varying vec3 vPos;uniform float time;void main(){gl_FragColor=vec4(fract(vPos*.1+time),1);}';
+    const hellFragmentShader = 'precision highp float;varying vec3 vPos;uniform float time;void main(){vec3 p=normalize(vPos)*9.,c=-vec3(0,.5,1);for(;c.r<length(p=.9*p+.3*sin(p.yzx+time/.3+sin(2.*p.zxy-time)))-2.;c+=.03);gl_FragColor=vec4(c,1);}';
+    const hell = new BABYLON.ShaderMaterial('hell', scene, {vertexSource: vposVertexShader, fragmentSource: hellFragmentShader}, {});
+    hell.backFaceCulling = false;
+    hell.disableLighting = true;
+    const sky = BABYLON.MeshBuilder.CreateSphere('sky', {diameter: 999});
+    sky.material = hell;
+    sky.infiniteDistance = true;
+
+    const startTime = Date.now();
+    scene.onBeforeRenderObservable.add(() => {
+        hell.setFloat("time", (Date.now() - startTime) / 1000);
+    });
+
     for (const thing of things) {
         const x = thing[0]/8;
         const y = thing[1]/8;
@@ -278,7 +300,7 @@ function createScene(things, vertices, linedefs) {
         const end   = vertices[linedef[1]];
         const x1 = start[0]/8, x2 = end[0]/8;
         const y1 = start[1]/8, y2 = end[1]/8;
-        const plane = BABYLON.MeshBuilder.CreatePlane('plane', {width: Math.abs(x1-x2+y1-y2), height: 10, sourcePlane: BABYLON.Plane.FromPoints(new BABYLON.Vector3(x1, 0, y1), new BABYLON.Vector3(x2, 0, y2), new BABYLON.Vector3(x2, -1, y2))});
+        const plane = BABYLON.MeshBuilder.CreatePlane('plane', {width: Math.abs(x1-x2+y1-y2), height: 10, sourcePlane: BABYLON.Plane.FromPoints(new BABYLON.Vector3(x1, 1, y1), new BABYLON.Vector3(x2, 1, y2), new BABYLON.Vector3(x2, 0, y2))});
         plane.position = new BABYLON.Vector3((x1+x2)/2, 5, (y1+y2)/2);
         plane.checkCollisions = true;
         plane.material = wood;
