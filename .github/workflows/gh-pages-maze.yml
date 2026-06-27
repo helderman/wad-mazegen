@@ -1,0 +1,38 @@
+name: gh-pages-maze
+
+on:
+  push:
+    branches: [ "main" ]
+    paths: [ "python/**" ]
+  pull_request:
+    branches: [ "main" ]
+    paths: [ "python/**" ]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: python
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+
+      - name: Build test.html and test.wad
+        run: make
+
+      - name: Collect artifact files
+        run: |
+              mkdir -p _site
+              cp -p python/test.{html,wad} _site/
+              echo -e '## Maze demo\n[Click here](test.html)' > _site/index.md
+
+      - name: Upload to GitHub Pages
+        uses: actions/upload-pages-artifact@v5.0.0
+
+      - name: Deploy GitHub Pages site
+        uses: actions/deploy-pages@v3.0.2-node.24
