@@ -9,17 +9,17 @@ on:
     paths: [ "python/**" ]
   workflow_dispatch:
 
-defaults:
-  run:
-    working-directory: python
-
 jobs:
-  build:
+  deploy:
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
     runs-on: ubuntu-latest
 
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - name: Checkout main branch
+      - name: Checkout main branch into $GITHUB_WORKSPACE
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -29,14 +29,13 @@ jobs:
           pip-install: -r python/requirements.txt
 
       - name: Build test.html and test.wad
-        run: make
+        run: make -C python
 
       - name: Collect artifact files
         run: |
-              ls -l
-              mkdir -p ../_site
-              cp -p test.{html,wad} ../_site/
-              echo -e '## Maze demo\n[Click here](test.html)' > ../_site/index.md
+              mkdir -p _site
+              cp -p python/test.{html,wad} _site/
+              echo -e '## Maze demo\n[Click here](test.html)' > _site/index.md
 
       - name: Upload to GitHub Pages
         uses: actions/upload-pages-artifact@v5.0.0
