@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout main branch into $GITHUB_WORKSPACE
+      - name: Checkout main branch   # into $GITHUB_WORKSPACE
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -30,12 +30,6 @@ jobs:
 
       - name: Build test.html and test.wad
         run: make -C python
-
-      - name: Collect artifact files
-        run: |
-              mkdir -p _site
-              cp -p python/test.{html,wad} _site/
-              echo -e '## Maze demo\n[Click here](test.html)' > _site/index.md
 
       - name: Upload to GitHub Pages
         uses: actions/upload-pages-artifact@v5.0.0

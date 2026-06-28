@@ -235,76 +235,86 @@ if __name__ == '__main__':
 <style>
 html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
 #maze { width: 100%; height: 100%; touch-action: none; }
-.hud { position: absolute; left: 0.5em; top: 0.5em; padding: 0.5em; text-align: center; background: #fff8; z-index: 1; }
+h1 { position: absolute; width: 100%; text-align: center; z-index: -1; }
+div { position: absolute; left: 0.5em; top: 0.5em; text-align: center; background: #fff8; }
+p { margin: 1em; }
 </style>
+<h1>Loading...</h1>
 <canvas id="maze"></canvas>
-<div class="hud">
-<div>Download as:</div>
-<div><a href="test.wad">WAD</a></div>
-<div>Select map:</div>
-<div><select id="mapselect"></select></div>
+<div>
+<p>Download as:<br><a href="test.html.dl" download="test.html" target="_blank">HTML</a>, <a href="test.wad">WAD</a></p>
+<p>Level:<br><select id="mapselect"></select></p>
 </div>
 <script src="https://cdn.babylonjs.com/babylon.js"></script>
 <script>
 const canvas = document.getElementById('maze');
 const mapselect = document.getElementById('mapselect');
 const engine = new BABYLON.Engine(canvas, true, {preserveDrawingBuffer: true, stencil: true});
+let skyScale = 0;
 function createScene(things, vertices, linedefs) {
     const scene = new BABYLON.Scene(engine);
     scene.gravity = new BABYLON.Vector3(0, -1, 0);
-    scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.98);
-    scene.ambientColor = BABYLON.Color3.White();
+    //scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.98);
+    //scene.ambientColor = BABYLON.Color3.White();
     scene.collisionsEnabled = true;
-    const camera = new BABYLON.UniversalCamera('cam', new BABYLON.Vector3(0, 5, -10)); // TODO
-    camera.cameraDirection = new BABYLON.Vector3(0, 0, 0.5);
-    camera.attachControl(canvas, false);
-    camera.ellipsoid = new BABYLON.Vector3(3, 2, 3);
+    scene.createDefaultCamera(false, true, true);
+    const camera = scene.activeCamera;
     camera.applyGravity = true;
     camera.checkCollisions = true;
-    new BABYLON.HemisphericLight('light1', BABYLON.Vector3.Up()).diffuse = new BABYLON.Color3(0.4, 0.6, 0.8);
     const vposVertexShader = 'precision highp float;attribute vec3 position;uniform mat4 worldViewProjection;varying vec3 vPos;void main(){gl_Position=worldViewProjection*vec4(vPos=position,1);}';
-    const woodFragmentShader = 'precision highp float;varying vec3 vPos;void main(){float x=vPos.x+vPos.z,d=1.-.05*sin(x*.15+fract(x*.2));gl_FragColor=vec4(vec3(.6,.44,.2)*d*(1.+.05*fract(vPos.y*.05+sin(x*.2+d)*20.)),1);}';
-    const carpetFragmentShader = 'precision highp float;varying vec3 vPos;void main(){gl_FragColor=vec4(.4,.4,step(1.,dot(fract(vPos.xz+sin(vPos.zx)),vec2(1)))*.2,1);}';
-    const wood = new BABYLON.ShaderMaterial('wood', scene, {vertexSource: vposVertexShader, fragmentSource: woodFragmentShader}, {});
+    const wood = new BABYLON.ShaderMaterial('wood', scene, {vertexSource: vposVertexShader, fragmentSource: 'precision highp float;varying vec3 vPos;void main(){float x=vPos.x+vPos.z,d=1.-.05*sin(x*.3+fract(x*.4));gl_FragColor=vec4(vec3(.6,.44,.2)*d*(1.+.05*fract(vPos.y*.1+sin(x*.4+d)*20.)),1);}'});
     const ground = BABYLON.MeshBuilder.CreateGround("ground1", { width: 999, height: 999 });
     ground.checkCollisions = true;
-    ground.material = new BABYLON.ShaderMaterial('carpet', scene, {vertexSource: vposVertexShader, fragmentSource: carpetFragmentShader}, {});
+    ground.material = new BABYLON.ShaderMaterial('carpet', scene, {vertexSource: vposVertexShader, fragmentSource: 'precision highp float;varying vec3 vPos;void main(){gl_FragColor=vec4(.4,.4,step(1.,dot(fract(vPos.xz+sin(vPos.zx)),vec2(1)))*.2,1);}'});
 
-    //const hellFragmentShader = 'precision highp float;varying vec3 vPos;uniform float time;void main(){gl_FragColor=vec4(fract(vPos*.1+time),1);}';
-    const hellFragmentShader = 'precision highp float;varying vec3 vPos;uniform float time;void main(){vec3 p=normalize(vPos)*9.,c=-vec3(0,.5,1);for(;c.r<length(p=.9*p+.3*sin(p.yzx+time/.3+sin(2.*p.zxy-time)))-2.;c+=.03);gl_FragColor=vec4(c,1);}';
-    const hell = new BABYLON.ShaderMaterial('hell', scene, {vertexSource: vposVertexShader, fragmentSource: hellFragmentShader}, {});
+    const hell = new BABYLON.ShaderMaterial('hell', scene, {vertexSource: vposVertexShader, fragmentSource: 'precision highp float;varying vec3 vPos;uniform float time;void main(){vec3 p=normalize(vPos)*9.,c=-vec3(0,.5,1);for(;c.r<length(p=.9*p+.3*sin(p.yzx+time/.3+sin(2.*p.zxy-time)))-2.;c+=.03);gl_FragColor=vec4(c,1);}'});
     hell.backFaceCulling = false;
     hell.disableLighting = true;
     const sky = BABYLON.MeshBuilder.CreateSphere('sky', {diameter: 999});
     sky.material = hell;
     sky.infiniteDistance = true;
 
-    const startTime = Date.now();
-    scene.onBeforeRenderObservable.add(() => {
-        hell.setFloat("time", (Date.now() - startTime) / 1000);
-    });
-
+    const exits = [];
     for (const thing of things) {
-        const x = thing[0]/8;
-        const y = thing[1]/8;
+        const x = thing[0]/25;
+        const y = thing[1]/25;
         switch (thing[2]) {
-            case 1:   // start position of player (= camera)
-                camera.position = new BABYLON.Vector3(x, 4, y);
+            case 1:   // entry
+                camera.position = new BABYLON.Vector3(x, 2, y);
                 break;
-            default:  // objects
-                BABYLON.MeshBuilder.CreateSphere('sphere1', {diameter: 2}).position = new BABYLON.Vector3(x, 1, y);
+            case 17:  // exit
+                const sphere = BABYLON.MeshBuilder.CreateSphere('sphere1', {diameter: 3});
+                exits.push(sphere.position = new BABYLON.Vector3(x, 1.5, y));
+                sphere.material = hell;
+                //const light = new BABYLON.PointLight("pointLight", new BABYLON.Vector3(x, 1.5, y), scene);
+                //light.diffuse = new BABYLON.Color3(1, 0.6, 0);
+                break;
         }
     }
     for (const linedef of linedefs) {
         const start = vertices[linedef[0]];
         const end   = vertices[linedef[1]];
-        const x1 = start[0]/8, x2 = end[0]/8;
-        const y1 = start[1]/8, y2 = end[1]/8;
-        const plane = BABYLON.MeshBuilder.CreatePlane('plane', {width: Math.abs(x1-x2+y1-y2), height: 10, sourcePlane: BABYLON.Plane.FromPoints(new BABYLON.Vector3(x1, 1, y1), new BABYLON.Vector3(x2, 1, y2), new BABYLON.Vector3(x2, 0, y2))});
-        plane.position = new BABYLON.Vector3((x1+x2)/2, 5, (y1+y2)/2);
+        const x1 = start[0]/25, x2 = end[0]/25;
+        const y1 = start[1]/25, y2 = end[1]/25;
+        const plane = BABYLON.MeshBuilder.CreatePlane('plane', {width: Math.abs(x1-x2+y1-y2), height: 4, sourcePlane: BABYLON.Plane.FromPoints(new BABYLON.Vector3(x1, 1, y1), new BABYLON.Vector3(x2, 1, y2), new BABYLON.Vector3(x2, 0, y2))});
+        plane.position = new BABYLON.Vector3((x1+x2)/2, 2, (y1+y2)/2);
         plane.checkCollisions = true;
         plane.material = wood;
     }
+    const startTime = Date.now();
+    scene.onBeforeRenderObservable.add(() => {
+        hell.setFloat("time", (Date.now() - startTime) / 1000);
+        if (skyScale > 0 && skyScale < 1) {
+            skyScale *= 1.04;
+            sky.scaling = new BABYLON.Vector3(skyScale, skyScale, skyScale);
+        }
+        for (const e of exits) {
+            if (BABYLON.Vector3.Distance(e, camera.position) < 1.5) {
+                mapselect.selectedIndex = (mapselect.selectedIndex + 1) % mapselect.options.length;
+                skyScale = 0.003;
+            }
+        }
+    });
     return scene;
 }
 function addOption(name) {

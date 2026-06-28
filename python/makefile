@@ -1,27 +1,29 @@
-PWAD = test.wad
-HTML = test.html
+DEPLOY_DIR = ../_site
+PWAD = $(DEPLOY_DIR)/test.wad
+HTML = $(DEPLOY_DIR)/test.html
+HTML_DOWNLOAD = $(HTML).dl
 
 IWAD = freedoom2.wad
 DOOM = /mnt/d/apps/GZDoom/gzdoom.exe
-WEBBROWSER = explorer.exe
-#WEBBROWSER = open
+WEB = cd $(DEPLOY_DIR) && explorer.exe test.html
+#WEB = open $(HTML)
 
-all: $(PWAD) $(HTML)
+all: $(PWAD) $(HTML) $(HTML_DOWNLOAD)
 
-$(PWAD): asc2wad.py MAP??.txt
-	python3 asc2wad.py MAP??.txt --udmf "$@"
+$(PWAD) $(HTML): asc2wad.py MAP??.txt
+	python3 asc2wad.py MAP??.txt --udmf $(PWAD) --babylon $(HTML)
 
-$(HTML): asc2wad.py MAP??.txt
-	python3 asc2wad.py MAP??.txt --babylon "$@"
+$(HTML_DOWNLOAD): $(HTML)
+	cp $< $@
 
 run: $(PWAD)
-	"$(DOOM)" -iwad "$(IWAD)" -file "$<"
+	$(DOOM) -iwad $(IWAD) -file $<
 
-preview: $(HTML)
-	$(WEBBROWSER) $<
+preview: all
+	$(WEB)
 
 clean:
-	$(RM) $(PWAD) $(HTML)
+	$(RM) $(PWAD) $(HTML) $(HTML_DOWNLOAD)
 
 help:
 	python3 asc2wad.py --help
