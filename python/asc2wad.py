@@ -251,7 +251,17 @@ const canvas = document.getElementById('maze');
 const mapselect = document.getElementById('mapselect');
 const engine = new BABYLON.Engine(canvas, true, {preserveDrawingBuffer: true, stencil: true});
 let skyScale = 0;
-function createScene(things, vertices, linedefs) {
+const groundShaders = [
+    'varying vec3 vPos;void main(){gl_FragColor=vec4(.4,.4,step(1.,dot(fract(vPos.xz+sin(vPos.zx)),vec2(1)))*.2,1);}',
+    'varying vec3 vPos;void main(){vec3 p=sin(vPos*9.);gl_FragColor=vec4(p.x*p.z*.5,.2,.3,1);}',
+    'varying vec3 vPos;void main(){vec3 p=vPos*4.;gl_FragColor=vec4(vec3(.5-.5*length(sin(p.xz+2.*sin(p.zx)))),1);}'
+];
+const wallShaders = [
+    'varying vec3 vPos;void main(){float x=vPos.x+vPos.z,d=1.-.05*sin(x*.3+fract(x*.4));gl_FragColor=vec4(vec3(.6,.44,.2)*d*(1.+.05*fract(vPos.y*.1+sin(x*.4+d)*20.)),1);}',
+    'varying vec3 vPos;void main(){vec2 p=vPos.xy+vPos.zy;p.x+=.5*floor(p.y);gl_FragColor=vec4(vec3(.7,.3,0)+dot(fract(p),vec2(.03)),1);}',
+    'varying vec3 vPos;void main(){float x=vPos.x+vPos.z;gl_FragColor=vec4(vec3(.3,.2,.1)+.2*smoothstep(-2.,3.,vPos.y+sin(x+sin(x*9.))),1);}'
+];
+function createScene(level, things, vertices, linedefs) {
     const scene = new BABYLON.Scene(engine);
     scene.gravity = new BABYLON.Vector3(0, -1, 0);
     //scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.98);
@@ -262,10 +272,10 @@ function createScene(things, vertices, linedefs) {
     camera.applyGravity = true;
     camera.checkCollisions = true;
     const vposVertexShader = 'precision highp float;attribute vec3 position;uniform mat4 worldViewProjection;varying vec3 vPos;void main(){gl_Position=worldViewProjection*vec4(vPos=position,1);}';
-    const wood = new BABYLON.ShaderMaterial('wood', scene, {vertexSource: vposVertexShader, fragmentSource: 'precision highp float;varying vec3 vPos;void main(){float x=vPos.x+vPos.z,d=1.-.05*sin(x*.3+fract(x*.4));gl_FragColor=vec4(vec3(.6,.44,.2)*d*(1.+.05*fract(vPos.y*.1+sin(x*.4+d)*20.)),1);}'});
-    const ground = BABYLON.MeshBuilder.CreateGround("ground1", { width: 999, height: 999 });
+    const wall = new BABYLON.ShaderMaterial('wall', scene, {vertexSource: vposVertexShader, fragmentSource: 'precision highp float;' + wallShaders[level % wallShaders.length]});
+    const ground = BABYLON.MeshBuilder.CreateGround('ground', { width: 999, height: 999 });
     ground.checkCollisions = true;
-    ground.material = new BABYLON.ShaderMaterial('carpet', scene, {vertexSource: vposVertexShader, fragmentSource: 'precision highp float;varying vec3 vPos;void main(){gl_FragColor=vec4(.4,.4,step(1.,dot(fract(vPos.xz+sin(vPos.zx)),vec2(1)))*.2,1);}'});
+    ground.material = new BABYLON.ShaderMaterial('carpet', scene, {vertexSource: vposVertexShader, fragmentSource: 'precision highp float;' + groundShaders[level % groundShaders.length]});
 
     const hell = new BABYLON.ShaderMaterial('hell', scene, {vertexSource: vposVertexShader, fragmentSource: 'precision highp float;varying vec3 vPos;uniform float time;void main(){vec3 p=normalize(vPos)*9.,c=-vec3(0,.5,1);for(;c.r<length(p=.9*p+.3*sin(p.yzx+time/.3+sin(2.*p.zxy-time)))-2.;c+=.03);gl_FragColor=vec4(c,1);}'});
     hell.backFaceCulling = false;
@@ -299,7 +309,7 @@ function createScene(things, vertices, linedefs) {
         const plane = BABYLON.MeshBuilder.CreatePlane('plane', {width: Math.abs(x1-x2+y1-y2), height: 4, sourcePlane: BABYLON.Plane.FromPoints(new BABYLON.Vector3(x1, 1, y1), new BABYLON.Vector3(x2, 1, y2), new BABYLON.Vector3(x2, 0, y2))});
         plane.position = new BABYLON.Vector3((x1+x2)/2, 2, (y1+y2)/2);
         plane.checkCollisions = true;
-        plane.material = wood;
+        plane.material = wall;
     }
     const startTime = Date.now();
     scene.onBeforeRenderObservable.add(() => {
@@ -325,9 +335,9 @@ function addOption(name) {
 const scenes = {};
 '''
             );
-            for m in maps:
+            for i, m in enumerate(maps):
                 f.write(f'addOption("{m.mapname}");\n');
-                f.write(f'scenes["{m.mapname}"] = createScene({json.dumps(m.thing_list)}, {json.dumps(m.vertex_list)}, {json.dumps(m.linedef_list)});\n');
+                f.write(f'scenes["{m.mapname}"] = createScene({i}, {json.dumps(m.thing_list)}, {json.dumps(m.vertex_list)}, {json.dumps(m.linedef_list)});\n');
             f.write('''
 engine.runRenderLoop(function() { scenes[mapselect.value].render(); });
 window.addEventListener('resize', function() { engine.resize(); });
