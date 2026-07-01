@@ -250,15 +250,19 @@ p { margin: 1em; }
 const canvas = document.getElementById('maze');
 const mapselect = document.getElementById('mapselect');
 const engine = new BABYLON.Engine(canvas, true, {preserveDrawingBuffer: true, stencil: true});
-let skyScale = 0;
 const groundShaders = [
     'varying vec3 vPos;void main(){gl_FragColor=vec4(.4,.4,step(1.,dot(fract(vPos.xz+sin(vPos.zx)),vec2(1)))*.2,1);}',
-    'varying vec3 vPos;void main(){vec3 p=sin(vPos*9.);gl_FragColor=vec4(p.x*p.z*.5,.2,.3,1);}',
-    'varying vec3 vPos;void main(){vec3 p=vPos*4.;gl_FragColor=vec4(vec3(.5-.5*length(sin(p.xz+2.*sin(p.zx)))),1);}'
+    'varying vec3 vPos;void main(){vec3 p=sin(vPos*9.);gl_FragColor=vec4(.2,p.x*p.z*.1,0,1);}',
+    'varying vec3 vPos;void main(){vec3 p=vPos*4.;gl_FragColor=vec4(vec3(.5-.4*length(sin(p.xz+2.*sin(p.zx)))),1);}'
+];
+const skyShaders = [
+    'varying vec3 vPos;uniform float time;void main(){vec2 p=vPos.zx/vPos.y*.1;gl_FragColor=vec4(mix(vec3(1),vec3(.53,.81,.92),smoothstep(-.7,.7, .7+dot(p,p)+sin(12.*p.x-.2*time)*sin(42.*p.y+.1*sin(72.*p.x-2.4*time)))),1);}',
+    'varying vec3 vPos;uniform float time;void main(){float r=3.*atan(length(vPos.xz),vPos.y),d=smoothstep(.3,.9,r)*cos(r+r)*sin((atan(vPos.z,vPos.x)+r-time*.2)*3.);gl_FragColor=vec4(mix(vec3(.16,.24,.27),vec3(.6),d*d),1);}',
+    'varying vec3 vPos;uniform float time;void main(){vec3 p=normalize(vPos)*9.,c=-vec3(0,.5,1);for(;c.r<length(p=.9*p+.3*sin(p.yzx+time/.3+sin(2.*p.zxy-time)))-2.;c+=.03);gl_FragColor=vec4(c,1);}'
 ];
 const wallShaders = [
     'varying vec3 vPos;void main(){float x=vPos.x+vPos.z,d=1.-.05*sin(x*.3+fract(x*.4));gl_FragColor=vec4(vec3(.6,.44,.2)*d*(1.+.05*fract(vPos.y*.1+sin(x*.4+d)*20.)),1);}',
-    'varying vec3 vPos;void main(){vec2 p=vPos.xy+vPos.zy;p.x+=.5*floor(p.y);gl_FragColor=vec4(vec3(.7,.3,0)+dot(fract(p),vec2(.03)),1);}',
+    'varying vec3 vPos;void main(){vec2 p=vPos.xy+vPos.zy;p.x+=.5*floor(p.y);gl_FragColor=vec4(vec3(.4,.2,0)+dot(fract(p),vec2(.03)),1);}',
     'varying vec3 vPos;void main(){float x=vPos.x+vPos.z;gl_FragColor=vec4(vec3(.3,.2,.1)+.2*smoothstep(-2.,3.,vPos.y+sin(x+sin(x*9.))),1);}'
 ];
 function createScene(level, things, vertices, linedefs) {
@@ -277,13 +281,16 @@ function createScene(level, things, vertices, linedefs) {
     ground.checkCollisions = true;
     ground.material = new BABYLON.ShaderMaterial('carpet', scene, {vertexSource: vposVertexShader, fragmentSource: 'precision highp float;' + groundShaders[level % groundShaders.length]});
 
-    const hell = new BABYLON.ShaderMaterial('hell', scene, {vertexSource: vposVertexShader, fragmentSource: 'precision highp float;varying vec3 vPos;uniform float time;void main(){vec3 p=normalize(vPos)*9.,c=-vec3(0,.5,1);for(;c.r<length(p=.9*p+.3*sin(p.yzx+time/.3+sin(2.*p.zxy-time)))-2.;c+=.03);gl_FragColor=vec4(c,1);}'});
-    hell.backFaceCulling = false;
-    hell.disableLighting = true;
+    const sky0 = new BABYLON.ShaderMaterial('sky0', scene, {vertexSource: vposVertexShader, fragmentSource: 'precision highp float;' + skyShaders[level % skyShaders.length]});
+    sky0.backFaceCulling = false;
+    sky0.disableLighting = true;
     const sky = BABYLON.MeshBuilder.CreateSphere('sky', {diameter: 999});
-    sky.material = hell;
+    sky.material = sky0;
     sky.infiniteDistance = true;
 
+    const sky1 = new BABYLON.ShaderMaterial('sky1', scene, {vertexSource: vposVertexShader, fragmentSource: 'precision highp float;' + skyShaders[(level+1) % skyShaders.length]});
+    sky1.backFaceCulling = false;
+    sky1.disableLighting = true;
     const exits = [];
     for (const thing of things) {
         const x = thing[0]/25;
@@ -295,7 +302,7 @@ function createScene(level, things, vertices, linedefs) {
             case 17:  // exit
                 const sphere = BABYLON.MeshBuilder.CreateSphere('sphere1', {diameter: 3});
                 exits.push(sphere.position = new BABYLON.Vector3(x, 1.5, y));
-                sphere.material = hell;
+                sphere.material = sky1;
                 //const light = new BABYLON.PointLight("pointLight", new BABYLON.Vector3(x, 1.5, y), scene);
                 //light.diffuse = new BABYLON.Color3(1, 0.6, 0);
                 break;
@@ -313,15 +320,12 @@ function createScene(level, things, vertices, linedefs) {
     }
     const startTime = Date.now();
     scene.onBeforeRenderObservable.add(() => {
-        hell.setFloat("time", (Date.now() - startTime) / 1000);
-        if (skyScale > 0 && skyScale < 1) {
-            skyScale *= 1.04;
-            sky.scaling = new BABYLON.Vector3(skyScale, skyScale, skyScale);
-        }
+        const t = (Date.now() - startTime) / 1000;
+        sky0.setFloat("time", t);
+        sky1.setFloat("time", t);
         for (const e of exits) {
             if (BABYLON.Vector3.Distance(e, camera.position) < 1.5) {
                 mapselect.selectedIndex = (mapselect.selectedIndex + 1) % mapselect.options.length;
-                skyScale = 0.003;
             }
         }
     });
